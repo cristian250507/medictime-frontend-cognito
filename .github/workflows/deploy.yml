@@ -1,0 +1,50 @@
+name: Desplegar MEDICTIME en GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar codigo del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Compilar aplicacion Angular para produccion
+        run: npx ng build --configuration production --base-href "/${{ github.event.repository.name }}/"
+
+      - name: Preparar archivo 404.html para rutas de Angular
+        run: |
+          DIST_DIR=$(find dist -type f -name "index.html" -exec dirname {} \; | head -n 1)
+          cp "$DIST_DIR/index.html" "$DIST_DIR/404.html"
+          echo "ART_DIR=$DIST_DIR" >> $GITHUB_ENV
+
+      - name: Subir artefacto a GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ env.ART_DIR }}
+
+      - name: Publicar en GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
