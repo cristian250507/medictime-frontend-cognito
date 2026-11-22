@@ -1,9 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { signOut } from 'aws-amplify/auth';
+import { environment } from '../../environments/environment';
 
 export interface MedicoItem {
   id: number;
@@ -33,66 +34,21 @@ export interface CitaAgendada {
   styleUrls: ['./publico.css']
 })
 export class Publico implements OnInit {
-  // Información extraída de la sesión de Cognito
   usuarioEmail = 'paciente@clinica.cl';
   rolCognito = 'Publico';
-
-  // Fecha mínima permitida (hoy)
   fechaMinima = '';
 
-  // Estado de conexión al backend (API Gateway -> ECS Spring Boot)
-  private readonly apiUrl = 'https://tu-api-gateway.execute-api.us-east-1.amazonaws.com/prod/api';
+  // Conexión real preparada para el backend de tu compañero
+  private readonly apiUrl = environment.apiUrl;
   cargandoMedicos = false;
+  errorCargaMedicos = false;
 
-  // Catálogo de médicos
-  medicos: MedicoItem[] = [
-    {
-      id: 1,
-      nombre: 'Dra. Camila Valenzuela',
-      especialidad: 'Medicina General',
-      sucursal: 'Sede Central',
-      box: 'Box 102',
-      disponibles: ['09:00', '09:30', '10:30', '11:30', '15:00', '16:30']
-    },
-    {
-      id: 2,
-      nombre: 'Dr. Sebastián Rojas',
-      especialidad: 'Cardiología',
-      sucursal: 'Sede Central',
-      box: 'Box 205',
-      disponibles: ['08:30', '10:00', '11:00', '14:30', '16:00']
-    },
-    {
-      id: 3,
-      nombre: 'Dra. Valentina Muñoz',
-      especialidad: 'Pediatría',
-      sucursal: 'Sede Norte',
-      box: 'Box 108',
-      disponibles: ['09:00', '10:00', '11:00', '12:00', '15:30', '17:00']
-    },
-    {
-      id: 4,
-      nombre: 'Dr. Matías Contreras',
-      especialidad: 'Dermatología',
-      sucursal: 'Sede Norte',
-      box: 'Box 301',
-      disponibles: ['09:30', '10:30', '14:00', '15:00', '16:30']
-    },
-    {
-      id: 5,
-      nombre: 'Dra. Fernanda Soto',
-      especialidad: 'Traumatología',
-      sucursal: 'Sede Central',
-      box: 'Box 110',
-      disponibles: ['08:30', '09:30', '11:30', '15:00', '17:30']
-    }
-  ];
+  // Lista vacía que se poblará desde la BD vía API
+  medicos: MedicoItem[] = [];
 
-  // Filtros y selección
   especialidadSeleccionada = 'Todas';
-  medicoSeleccionadoId: number = 1;
+  medicoSeleccionadoId: number | null = null;
 
-  // Formulario de reserva
   formulario = {
     paciente: '',
     rut: '',
@@ -104,10 +60,13 @@ export class Publico implements OnInit {
   citaReciente: CitaAgendada | null = null;
   historialCitas: CitaAgendada[] = [];
 
-  constructor(private http: HttpClient, private router: Router) {}
+  constructor(
+    private http: HttpClient,
+    private router: Router,
+    private cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit() {
-    // Calcula la fecha actual local en formato YYYY-MM-DD para bloquear días pasados
     const hoy = new Date();
     const yyyy = hoy.getFullYear();
     const mm = String(hoy.getMonth() + 1).padStart(2, '0');
@@ -149,7 +108,25 @@ export class Publico implements OnInit {
   }
 
   obtenerMedicosDesdeBackend() {
-    // Preparado para conectar con Spring Boot (GET /api/medicos)
+    this.cargandoMedicos = true;
+    this.errorCargaMedicos = false;
+
+    this.http.get<MedicoItem[]>(`${this.apiUrl}/medicos`).subscribe({
+      next: (data) => {
+        this.medicos = data;
+        if (this.medicos.length > 0) {
+          this.medicoSeleccionadoId = this.medicos[0].id;
+        }
+        this.cargandoMedicos = false;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.medicos = [];
+        this.errorCargaMedicos = true;
+        this.cargandoMedicos = false;
+        this.cdr.detectChanges();
+      }
+    });
   }
 
   get especialidades(): string[] {
@@ -188,7 +165,7 @@ export class Publico implements OnInit {
   agendarCita() {
     const medicoObj = this.medicoSeleccionado;
     if (!this.formulario.paciente || !this.formulario.fecha || !this.formulario.hora || !medicoObj) {
-      alert('Por favor completa la fecha y selecciona un bloque horario.');
+      alert('Por favor selecciona un médico, fecha y bloque horario.');
       return;
     }
 
@@ -197,25 +174,40 @@ export class Publico implements OnInit {
       return;
     }
 
-    const nuevaCita: CitaAgendada = {
-      codigo: 'MT-' + Math.floor(1000 + Math.random() * 9000),
-      paciente: this.formulario.paciente,
-      rut: this.formulario.rut || 'No informado',
-      medico: medicoObj,
+    const payloadCita = {
+      pacienteNombre: this.formulario.paciente,
+      pacienteRut: this.formulario.rut,
+      pacienteEmail: this.usuarioEmail,
+      medicoId: medicoObj.id,
       fecha: this.formulario.fecha,
       hora: this.formulario.hora,
-      motivo: this.formulario.motivo || 'Consulta médica general',
-      estado: 'Confirmada'
+      motivo: this.formulario.motivo || 'Consulta médica general'
     };
 
-    this.citaReciente = nuevaCita;
-    this.historialCitas.unshift(nuevaCita);
-    this.formulario.hora = '';
-    this.formulario.motivo = '';
+    this.http.post<CitaAgendada>(`${this.apiUrl}/citas`, payloadCita).subscribe({
+      next: (citaGuardada) => {
+        this.citaReciente = citaGuardada;
+        this.historialCitas.unshift(citaGuardada);
+        this.formulario.hora = '';
+        this.formulario.motivo = '';
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        alert('Error al conectar con la base de datos para guardar la cita.');
+      }
+    });
   }
 
   cancelarCita(cita: CitaAgendada) {
-    cita.estado = 'Cancelada';
+    this.http.patch(`${this.apiUrl}/citas/${cita.codigo}/cancelar`, {}).subscribe({
+      next: () => {
+        cita.estado = 'Cancelada';
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        alert('Error al conectar con la base de datos para cancelar la cita.');
+      }
+    });
   }
 
   async cerrarSesion() {

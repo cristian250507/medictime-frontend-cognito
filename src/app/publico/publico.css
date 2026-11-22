@@ -180,13 +180,42 @@
   box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
 }
 
-/* Estilo bloqueado para Nombre y RUT provenientes de Cognito */
 .input-locked {
   background-color: #e2e8f0 !important;
   color: #475569 !important;
   border-color: #cbd5e1 !important;
   cursor: not-allowed;
   font-weight: 600;
+}
+
+.db-inline-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 9px;
+  color: #b91c1c;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.btn-retry-inline {
+  padding: 0.35rem 0.75rem;
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.btn-retry-inline:hover {
+  background: #b91c1c;
 }
 
 .doctors-grid {
@@ -288,8 +317,13 @@
   transition: background-color 0.2s;
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background: #0369a1;
+}
+
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .side-column {
@@ -343,7 +377,7 @@
 
 .empty-state {
   text-align: center;
-  padding: 1.5rem 1rem;
+  padding: 1.2rem 1rem;
   background: #f8fafc;
   border-radius: 10px;
   color: #64748b;

@@ -58,7 +58,7 @@
       <div class="form-row">
         <div class="form-group">
           <label for="especialidad">Especialidad médica</label>
-          <select id="especialidad" [(ngModel)]="especialidadSeleccionada" (change)="alCambiarEspecialidad()">
+          <select id="especialidad" [(ngModel)]="especialidadSeleccionada" (change)="alCambiarEspecialidad()" [disabled]="medicos.length === 0">
             <option *ngFor="let esp of especialidades" [value]="esp">{{ esp }}</option>
           </select>
         </div>
@@ -74,10 +74,25 @@
         </div>
       </div>
 
-      <!-- Tarjetas de profesionales disponibles -->
+      <!-- Sección de profesionales disponibles -->
       <div class="form-group">
         <label>Profesional disponible *</label>
-        <div class="doctors-grid">
+
+        <!-- Estado 1: Cargando -->
+        <div class="empty-state" *ngIf="cargandoMedicos">
+          Conectando con la base de datos para obtener médicos...
+        </div>
+
+        <!-- Estado 2: Error al conectar con la base de datos -->
+        <div class="db-inline-error" *ngIf="!cargandoMedicos && errorCargaMedicos">
+          <span>⚠️ Error al cargar la base de datos. No se pudieron obtener los médicos disponibles.</span>
+          <button type="button" class="btn-retry-inline" (click)="obtenerMedicosDesdeBackend()">
+            Reintentar
+          </button>
+        </div>
+
+        <!-- Estado 3: Lista cargada desde la BD -->
+        <div class="doctors-grid" *ngIf="!cargandoMedicos && !errorCargaMedicos && medicosFiltrados.length > 0">
           <div
             *ngFor="let doc of medicosFiltrados"
             class="doctor-item"
@@ -93,7 +108,7 @@
         </div>
       </div>
 
-      <!-- Bloques horarios -->
+      <!-- Bloques horarios (se muestran cuando haya médico seleccionado) -->
       <div class="form-group" *ngIf="medicoSeleccionado">
         <label>Bloques horarios disponibles ({{ medicoSeleccionado.nombre }}) *</label>
         <div class="slots-grid">
@@ -119,14 +134,13 @@
         />
       </div>
 
-      <button type="button" class="btn-primary" (click)="agendarCita()">
+      <button type="button" class="btn-primary" [disabled]="medicos.length === 0" (click)="agendarCita()">
         Confirmar Reserva de Hora
       </button>
     </section>
 
     <!-- Columna Derecha: Comprobante e Historial -->
     <aside class="side-column">
-      <!-- Comprobante de última reserva -->
       <div class="card ticket-card" *ngIf="citaReciente">
         <div class="ticket-badge">✓ Reserva Confirmada</div>
         <h4>Comprobante {{ citaReciente.codigo }}</h4>
@@ -140,7 +154,6 @@
         </ul>
       </div>
 
-      <!-- Historial de citas agendadas -->
       <div class="card history-card">
         <div class="card-header">
           <h3>Mis Horas Agendadas ({{ historialCitas.length }})</h3>
@@ -148,7 +161,7 @@
         </div>
 
         <div class="empty-state" *ngIf="historialCitas.length === 0">
-          Aún no tienes horas médicas agendadas en esta sesión.
+          Aún no tienes horas médicas agendadas.
         </div>
 
         <div class="cita-list" *ngIf="historialCitas.length > 0">
