@@ -174,6 +174,7 @@ export class LoginComponent implements OnInit {
       return;
     }
 
+    const correoNormalizado = this.email.trim().toLowerCase();
     this.cargando = true;
     this.cdr.detectChanges();
 
@@ -187,7 +188,7 @@ export class LoginComponent implements OnInit {
         password: this.password,
         options: {
           userAttributes: {
-            email: this.email.trim(),
+            email: correoNormalizado,
             name: this.nombre.trim(),
             family_name: this.apellido.trim(),
             birthdate: this.fechaNacimiento,
@@ -197,7 +198,7 @@ export class LoginComponent implements OnInit {
         }
       });
 
-      this.guardarMapaUsuario(this.email, usernameGenerado);
+      this.guardarMapaUsuario(correoNormalizado, usernameGenerado);
 
       this.ngZone.run(() => {
         this.cargando = false;
@@ -215,7 +216,11 @@ export class LoginComponent implements OnInit {
       this.ngZone.run(() => {
         this.cargando = false;
         this.cdr.detectChanges();
-        alert('No se pudo registrar: ' + (error.message || 'Verifica los datos ingresados.'));
+        if (error.name === 'AliasExistsException' || error.name === 'UsernameExistsException') {
+          alert('Este correo electrónico o RUT ya está registrado en MEDICTIME. Inicia sesión o usa otros datos.');
+        } else {
+          alert('No se pudo registrar: ' + (error.message || 'Verifica los datos ingresados.'));
+        }
       });
     }
   }
@@ -253,7 +258,11 @@ export class LoginComponent implements OnInit {
       this.ngZone.run(() => {
         this.cargando = false;
         this.cdr.detectChanges();
-        alert('No se pudo confirmar: ' + (error.message || 'Verifica el correo y el código.'));
+        if (error.name === 'AliasExistsException') {
+          alert('Este correo electrónico ya fue verificado en otra cuenta. Inicia sesión con ese correo.');
+        } else {
+          alert('No se pudo confirmar: ' + (error.message || 'Verifica el correo y el código.'));
+        }
       });
     }
   }
@@ -279,4 +288,5 @@ export class LoginComponent implements OnInit {
       this.cdr.detectChanges();
     }
   }
+
 }
