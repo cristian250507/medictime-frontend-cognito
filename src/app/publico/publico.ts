@@ -26,6 +26,15 @@ export interface CitaAgendada {
   estado: 'Confirmada' | 'Cancelada';
 }
 
+const BLOQUES_POR_DEFECTO = [
+  '09:00',
+  '10:30',
+  '12:00',
+  '15:00',
+  '16:30',
+  '18:00'
+];
+
 @Component({
   selector: 'app-publico',
   standalone: true,
@@ -38,12 +47,11 @@ export class Publico implements OnInit {
   rolCognito = 'Publico';
   fechaMinima = '';
 
-  // Conexión real preparada para el backend de tu compañero
   private readonly apiUrl = environment.apiUrl;
   cargandoMedicos = false;
   errorCargaMedicos = false;
 
-  // Lista vacía que se poblará desde la BD vía API
+  // Lista que se poblará desde AWS RDS vía API
   medicos: MedicoItem[] = [];
 
   especialidadSeleccionada = 'Todas';
@@ -113,7 +121,15 @@ export class Publico implements OnInit {
 
     this.http.get<MedicoItem[]>(`${this.apiUrl}/medicos`).subscribe({
       next: (data) => {
-        this.medicos = data;
+        this.medicos = data.map((medico) => ({
+          ...medico,
+          sucursal: medico.sucursal || 'Sede Central',
+          box: medico.box || 'Box 101',
+          disponibles: medico.disponibles && medico.disponibles.length > 0
+            ? medico.disponibles
+            : [...BLOQUES_POR_DEFECTO]
+        }));
+
         if (this.medicos.length > 0) {
           this.medicoSeleccionadoId = this.medicos[0].id;
         }
@@ -174,40 +190,29 @@ export class Publico implements OnInit {
       return;
     }
 
-    const payloadCita = {
-      pacienteNombre: this.formulario.paciente,
-      pacienteRut: this.formulario.rut,
-      pacienteEmail: this.usuarioEmail,
-      medicoId: medicoObj.id,
+    // Simulación de creación de cita con los datos reales del médico traído de RDS
+    const codigoGenerado = `MT-${Math.floor(100000 + Math.random() * 900000)}`;
+    const nuevaCita: CitaAgendada = {
+      codigo: codigoGenerado,
+      paciente: this.formulario.paciente,
+      rut: this.formulario.rut,
+      medico: medicoObj,
       fecha: this.formulario.fecha,
       hora: this.formulario.hora,
-      motivo: this.formulario.motivo || 'Consulta médica general'
+      motivo: this.formulario.motivo || 'Consulta médica general',
+      estado: 'Confirmada'
     };
 
-    this.http.post<CitaAgendada>(`${this.apiUrl}/citas`, payloadCita).subscribe({
-      next: (citaGuardada) => {
-        this.citaReciente = citaGuardada;
-        this.historialCitas.unshift(citaGuardada);
-        this.formulario.hora = '';
-        this.formulario.motivo = '';
-        this.cdr.detectChanges();
-      },
-      error: () => {
-        alert('Error al conectar con la base de datos para guardar la cita.');
-      }
-    });
+    this.citaReciente = nuevaCita;
+    this.historialCitas.unshift(nuevaCita);
+    this.formulario.hora = '';
+    this.formulario.motivo = '';
+    this.cdr.detectChanges();
   }
 
   cancelarCita(cita: CitaAgendada) {
-    this.http.patch(`${this.apiUrl}/citas/${cita.codigo}/cancelar`, {}).subscribe({
-      next: () => {
-        cita.estado = 'Cancelada';
-        this.cdr.detectChanges();
-      },
-      error: () => {
-        alert('Error al conectar con la base de datos para cancelar la cita.');
-      }
-    });
+    cita.estado = 'Cancelada';
+    this.cdr.detectChanges();
   }
 
   async cerrarSesion() {
