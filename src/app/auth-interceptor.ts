@@ -1,6 +1,11 @@
 import { HttpInterceptorFn } from '@angular/common/http';
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
+  // No adjuntar el token de Cognito a las rutas públicas de ms-medicos
+  if (req.url.includes('/public/')) {
+    return next(req);
+  }
+
   // Obtenemos el JWT que guardamos durante el login
   const token = sessionStorage.getItem('jwt_token');
 
